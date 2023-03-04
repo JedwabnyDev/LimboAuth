@@ -603,7 +603,11 @@ public class LimboAuth {
             }
           });
 
-          result = TaskEvent.Result.BYPASS;
+          if (onlineMode) {
+            result = TaskEvent.Result.PREMIUM;
+          } else {
+            result = TaskEvent.Result.BYPASS;
+          }
         }
       }
     }
@@ -644,9 +648,13 @@ public class LimboAuth {
       case WAIT: {
         return;
       }
+      case PREMIUM: {
+        this.authServer.spawnPlayer(player, new AuthSessionHandler(this.playerDao, player, this, registeredPlayer, true));
+        break;
+      }
       case NORMAL:
       default: {
-        this.authServer.spawnPlayer(player, new AuthSessionHandler(this.playerDao, player, this, registeredPlayer));
+        this.authServer.spawnPlayer(player, new AuthSessionHandler(this.playerDao, player, this, registeredPlayer, false));
         break;
       }
     }

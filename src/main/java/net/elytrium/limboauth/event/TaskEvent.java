@@ -85,6 +85,7 @@ public abstract class TaskEvent {
     CANCEL,
     BYPASS,
     NORMAL,
-    WAIT
+    WAIT,
+    PREMIUM
   }
 }

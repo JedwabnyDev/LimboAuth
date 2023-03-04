@@ -116,14 +116,16 @@ public class AuthSessionHandler implements LimboSessionHandler {
   private boolean totpState;
   private String tempPassword;
   private boolean tokenReceived;
+  private final boolean isPremium;
 
   public static final Set<LimboPlayer> limboPlayers = new HashSet<>();
 
-  public AuthSessionHandler(Dao<RegisteredPlayer, String> playerDao, Player proxyPlayer, LimboAuth plugin, @Nullable RegisteredPlayer playerInfo) {
+  public AuthSessionHandler(Dao<RegisteredPlayer, String> playerDao, Player proxyPlayer, LimboAuth plugin, @Nullable RegisteredPlayer playerInfo, boolean isPremium) {
     this.playerDao = playerDao;
     this.proxyPlayer = proxyPlayer;
     this.plugin = plugin;
     this.playerInfo = playerInfo;
+    this.isPremium = isPremium;
   }
 
   @Override
@@ -173,9 +175,21 @@ public class AuthSessionHandler implements LimboSessionHandler {
       }
     }
 
+    if (this.isPremium) {
+      this.finishAuth();
+    } else {
+      this.handleOfflineAuth(serializer);
+      if (!this.loginOnlyByMod) {
+        this.sendMessage(true);
+      }
+    }
+  }
+
+  private void handleOfflineAuth(Serializer serializer) {
     boolean bossBarEnabled = !this.loginOnlyByMod && Settings.IMP.MAIN.ENABLE_BOSSBAR;
     int authTime = Settings.IMP.MAIN.AUTH_TIME;
     float multiplier = 1000.0F / authTime;
+
     this.authMainTask = this.player.getScheduledExecutor().scheduleWithFixedDelay(() -> {
       if (System.currentTimeMillis() - this.joinTime > authTime) {
         this.proxyPlayer.disconnect(timesUp);
@@ -191,10 +205,6 @@ public class AuthSessionHandler implements LimboSessionHandler {
 
     if (bossBarEnabled) {
       this.proxyPlayer.showBossBar(this.bossBar);
-    }
-
-    if (!this.loginOnlyByMod) {
-      this.sendMessage(true);
     }
   }
 
@@ -442,9 +452,20 @@ public class AuthSessionHandler implements LimboSessionHandler {
       e.printStackTrace();
     }
 
-    this.plugin.cacheAuthUser(this.proxyPlayer);
+    // should be in config file
+    boolean useCache = false;
+
+    if (useCache) this.plugin.cacheAuthUser(this.proxyPlayer);
+
+    this.proxyPlayer.hideBossBar(this.bossBar);
+
+    if (authMainTask != null) {
+      this.authMainTask.cancel(true);
+    }
+
     this.addToQueue();
   }
+
   private final boolean enabled = true;
   private final List<String> priorities = List.of("jd.queue.default:0", "jd.queue.vip:1", "jd.queue.svip:2");
   private void addToQueue(){
