@@ -405,6 +405,8 @@ public class AuthSessionHandler implements LimboSessionHandler {
       this.proxyPlayer.showTitle(loginSuccessfulTitle);
     }
 
+    System.out.println("log succesfull");
+
     this.plugin.clearBruteforceAttempts(this.proxyPlayer.getRemoteAddress().getAddress());
 
     this.plugin.getServer().getEventManager()
@@ -437,7 +439,7 @@ public class AuthSessionHandler implements LimboSessionHandler {
     }
 
     this.plugin.cacheAuthUser(this.proxyPlayer);
-    this.player.disconnect();
+    //this.player.disconnect();
   }
 
   public static void reload() {
