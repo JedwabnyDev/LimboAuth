@@ -452,20 +452,17 @@ public class AuthSessionHandler implements LimboSessionHandler {
       e.printStackTrace();
     }
 
-    // should be in config file
-
-
-    if (Settings.IMP.QUEUE.USE_CACHE) this.plugin.cacheAuthUser(this.proxyPlayer);
-
     this.proxyPlayer.hideBossBar(this.bossBar);
 
+    if (Settings.IMP.QUEUE.USE_CACHE) {
+      this.plugin.cacheAuthUser(this.proxyPlayer);
+    }
     if (authMainTask != null) {
       this.authMainTask.cancel(true);
     }
 
     this.addToQueue();
   }
-
 
   private void addToQueue(){
 

@@ -536,6 +536,18 @@ public class LimboAuth {
     }
   }
 
+  public void limboPlayer(Player player) {
+    RegisteredPlayer registeredPlayer = AuthSessionHandler.fetchInfo(this.playerDao, player.getUsername());
+
+    TaskEvent.Result result = TaskEvent.Result.QUEUE;
+
+    EventManager eventManager = this.server.getEventManager();
+    Consumer<TaskEvent> eventConsumer = (event) -> this.sendPlayer(event, ((PreAuthorizationEvent) event).getPlayerInfo());
+
+    PreAuthorizationEvent authEvent = new PreAuthorizationEvent(eventConsumer, result, player, registeredPlayer);
+    eventManager.fire(authEvent).thenAcceptAsync(eventConsumer);
+  }
+
   public void authPlayer(Player player) {
     boolean isFloodgate = !Settings.IMP.MAIN.FLOODGATE_NEED_AUTH && this.floodgateApi.isFloodgatePlayer(player.getUniqueId());
     if (!isFloodgate && this.isForcedPreviously(player.getUsername()) && this.isPremium(player.getUsername())) {
@@ -605,11 +617,7 @@ public class LimboAuth {
             }
           });
 
-          if (onlineMode) {
-            result = TaskEvent.Result.PREMIUM;
-          } else {
-            result = TaskEvent.Result.BYPASS;
-          }
+          result = TaskEvent.Result.QUEUE;
         }
       }
     }
@@ -629,7 +637,7 @@ public class LimboAuth {
     }
   }
 
-  private void sendPlayer(TaskEvent event, RegisteredPlayer registeredPlayer) {
+  public void sendPlayer(TaskEvent event, RegisteredPlayer registeredPlayer) {
     Player player = ((PreEvent) event).getPlayer();
 
     switch (event.getResult()) {
@@ -650,7 +658,7 @@ public class LimboAuth {
       case WAIT: {
         return;
       }
-      case PREMIUM: {
+      case QUEUE: {
         this.authServer.spawnPlayer(player, new AuthSessionHandler(this.playerDao, player, this, registeredPlayer, true));
         break;
       }

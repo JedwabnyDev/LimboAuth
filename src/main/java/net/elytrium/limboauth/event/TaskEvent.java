@@ -86,6 +86,6 @@ public abstract class TaskEvent {
     BYPASS,
     NORMAL,
     WAIT,
-    PREMIUM
+    QUEUE
   }
 }

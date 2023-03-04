@@ -19,6 +19,7 @@ package net.elytrium.limboauth.listener;
 
 import com.j256.ormlite.dao.Dao;
 import com.j256.ormlite.stmt.UpdateBuilder;
+import com.velocitypowered.api.event.EventManager;
 import com.velocitypowered.api.event.PostOrder;
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.connection.DisconnectEvent;
@@ -38,10 +39,14 @@ import java.sql.SQLException;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
+
 import net.elytrium.commons.utils.reflection.ReflectionException;
 import net.elytrium.limboapi.api.event.LoginLimboRegisterEvent;
 import net.elytrium.limboauth.LimboAuth;
 import net.elytrium.limboauth.Settings;
+import net.elytrium.limboauth.event.PreAuthorizationEvent;
+import net.elytrium.limboauth.event.TaskEvent;
 import net.elytrium.limboauth.floodgate.FloodgateApiHolder;
 import net.elytrium.limboauth.handler.AuthSessionHandler;
 import net.elytrium.limboauth.model.RegisteredPlayer;
@@ -118,6 +123,8 @@ public class AuthListener {
   public void onLoginLimboRegister(LoginLimboRegisterEvent event) {
     if (this.plugin.needAuth(event.getPlayer())) {
       event.addOnJoinCallback(() -> this.plugin.authPlayer(event.getPlayer()));
+    } else {
+      event.addOnJoinCallback(() -> this.plugin.limboPlayer(event.getPlayer()));
     }
   }
 
