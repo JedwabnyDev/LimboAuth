@@ -453,9 +453,9 @@ public class AuthSessionHandler implements LimboSessionHandler {
     }
 
     // should be in config file
-    boolean useCache = false;
 
-    if (useCache) this.plugin.cacheAuthUser(this.proxyPlayer);
+
+    if (Settings.IMP.QUEUE.USE_CACHE) this.plugin.cacheAuthUser(this.proxyPlayer);
 
     this.proxyPlayer.hideBossBar(this.bossBar);
 
@@ -466,8 +466,7 @@ public class AuthSessionHandler implements LimboSessionHandler {
     this.addToQueue();
   }
 
-  private final boolean enabled = true;
-  private final List<String> priorities = List.of("jd.queue.default:0", "jd.queue.vip:1", "jd.queue.svip:2");
+
   private void addToQueue(){
 
     if(player.getProxyPlayer().hasPermission("jd.queue.admin")) {
@@ -475,7 +474,7 @@ public class AuthSessionHandler implements LimboSessionHandler {
       return;
     }
 
-    Priority priority = Priority.reflectFromPermission(player.getProxyPlayer(), priorities);
+    Priority priority = Priority.reflectFromPermission(player.getProxyPlayer(), Settings.IMP.QUEUE.PRIORITIES);
 
     JoinPriority joinPriority = new JoinPriority(player.getProxyPlayer().getUniqueId().toString(), priority);
 

@@ -242,7 +242,7 @@ public class LimboAuth {
 
       }
 
-    }).delay(Duration.ofMillis(5000)).repeat(Duration.ofMillis(5000)).schedule();
+    }).delay(Duration.ofMillis(Settings.IMP.QUEUE.QUEUE_POOL_DELAY_MILIS)).repeat(Duration.ofMillis(Settings.IMP.QUEUE.QUEUE_POOL_DELAY_MILIS)).schedule();
   }
 
   @SuppressFBWarnings(value = "NP_NULL_ON_SOME_PATH", justification = "LEGACY_AMPERSAND can't be null in velocity.")

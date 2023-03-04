@@ -479,6 +479,22 @@ public class Settings extends YamlConfig {
     public String CONNECTION_PARAMETERS = "?autoReconnect=true&initialTimeout=1&useSSL=false";
   }
 
+  @Create
+  public QUEUE QUEUE;
+
+  public static class QUEUE {
+
+    @Comment("Queue priorities")
+    public List<String> PRIORITIES = List.of("jd.queue.default:0", "jd.queue.vip:1", "jd.queue.svip:2");
+
+    @Comment("Period per pool from queue")
+    public long QUEUE_POOL_DELAY_MILIS = 5000;
+
+    public boolean ENABLED = true;
+
+    public boolean USE_CACHE = false;
+  }
+
   public static class MD5KeySerializer extends ConfigSerializer<byte[], String> {
 
     private final MessageDigest md5;
