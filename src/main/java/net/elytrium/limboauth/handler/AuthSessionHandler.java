@@ -31,9 +31,7 @@ import io.whitfin.siphash.SipHasher;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.text.MessageFormat;
-import java.util.List;
-import java.util.Locale;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -47,12 +45,16 @@ import net.elytrium.limboauth.event.PostAuthorizationEvent;
 import net.elytrium.limboauth.event.PostRegisterEvent;
 import net.elytrium.limboauth.event.TaskEvent;
 import net.elytrium.limboauth.migration.MigrationHash;
+import net.elytrium.limboauth.model.JoinPriority;
+import net.elytrium.limboauth.model.Priority;
 import net.elytrium.limboauth.model.RegisteredPlayer;
 import net.elytrium.limboauth.model.SQLRuntimeException;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.title.Title;
 import org.checkerframework.checker.nullness.qual.Nullable;
+
+import static net.elytrium.limboauth.LimboAuth.queue;
 
 public class AuthSessionHandler implements LimboSessionHandler {
 
@@ -115,6 +117,8 @@ public class AuthSessionHandler implements LimboSessionHandler {
   private String tempPassword;
   private boolean tokenReceived;
 
+  public static final Set<LimboPlayer> limboPlayers = new HashSet<>();
+
   public AuthSessionHandler(Dao<RegisteredPlayer, String> playerDao, Player proxyPlayer, LimboAuth plugin, @Nullable RegisteredPlayer playerInfo) {
     this.playerDao = playerDao;
     this.proxyPlayer = proxyPlayer;
@@ -125,6 +129,7 @@ public class AuthSessionHandler implements LimboSessionHandler {
   @Override
   public void onSpawn(Limbo server, LimboPlayer player) {
     this.player = player;
+    limboPlayers.add(player);
 
     if (Settings.IMP.MAIN.DISABLE_FALLING) {
       this.player.disableFalling();
@@ -339,6 +344,7 @@ public class AuthSessionHandler implements LimboSessionHandler {
     }
 
     this.proxyPlayer.hideBossBar(this.bossBar);
+    limboPlayers.remove(player);
   }
 
   private void sendMessage(boolean sendTitle) {
@@ -405,8 +411,6 @@ public class AuthSessionHandler implements LimboSessionHandler {
       this.proxyPlayer.showTitle(loginSuccessfulTitle);
     }
 
-    System.out.println("log successful");
-
     this.plugin.clearBruteforceAttempts(this.proxyPlayer.getRemoteAddress().getAddress());
 
     this.plugin.getServer().getEventManager()
@@ -438,13 +442,29 @@ public class AuthSessionHandler implements LimboSessionHandler {
       e.printStackTrace();
     }
 
-    this.endAuthProcess();
-  }
-
-  private void endAuthProcess() {
-    this.proxyPlayer.hideBossBar(this.bossBar);
-    this.authMainTask.cancel(true);
     this.plugin.cacheAuthUser(this.proxyPlayer);
+    this.addToQueue();
+  }
+  private final boolean enabled = true;
+  private final List<String> priorities = List.of("jd.queue.default:0", "jd.queue.vip:1", "jd.queue.svip:2");
+  private void addToQueue(){
+
+    if(player.getProxyPlayer().hasPermission("jd.queue.admin")) {
+      this.player.disconnect();
+      return;
+    }
+
+    Priority priority = Priority.reflectFromPermission(player.getProxyPlayer(), priorities);
+
+    JoinPriority joinPriority = new JoinPriority(player.getProxyPlayer().getUniqueId().toString(), priority);
+
+    if (queue.contains(joinPriority)) {
+      queue.remove(joinPriority);
+      player.getProxyPlayer().sendMessage(Component.text("§b§lJd§aQueue§r Opuściłeś kolejkę... "));
+    } else {
+      queue.add(joinPriority);
+      player.getProxyPlayer().sendMessage(Component.text("§b§lJd§aQueue§r §7Dołączyłeś do kolejki. Twoje miejsce w kolejce: §6§l" + (Math.abs(Arrays.asList(queue.toArray()).indexOf(joinPriority)) + 1)));
+    }
   }
 
   public static void reload() {

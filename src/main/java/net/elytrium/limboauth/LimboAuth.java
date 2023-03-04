@@ -64,14 +64,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.SQLException;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.time.Duration;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -88,6 +82,7 @@ import net.elytrium.limboapi.api.LimboFactory;
 import net.elytrium.limboapi.api.chunk.VirtualWorld;
 import net.elytrium.limboapi.api.command.LimboCommandMeta;
 import net.elytrium.limboapi.api.file.WorldFile;
+import net.elytrium.limboapi.api.player.LimboPlayer;
 import net.elytrium.limboauth.command.ChangePasswordCommand;
 import net.elytrium.limboauth.command.DestroySessionCommand;
 import net.elytrium.limboauth.command.ForceChangePasswordCommand;
@@ -106,8 +101,10 @@ import net.elytrium.limboauth.event.TaskEvent;
 import net.elytrium.limboauth.floodgate.FloodgateApiHolder;
 import net.elytrium.limboauth.handler.AuthSessionHandler;
 import net.elytrium.limboauth.listener.AuthListener;
+import net.elytrium.limboauth.model.JoinPriority;
 import net.elytrium.limboauth.model.RegisteredPlayer;
 import net.elytrium.limboauth.model.SQLRuntimeException;
+import net.elytrium.limboauth.queue.PriorityComparator;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.ComponentSerializer;
 import net.kyori.adventure.title.Title;
@@ -200,6 +197,8 @@ public class LimboAuth {
     }
   }
 
+  public static final TreeSet<JoinPriority> queue = new TreeSet<>(new PriorityComparator());
+
   @Subscribe
   public void onProxyInitialization(ProxyInitializeEvent event) {
     System.setProperty("com.j256.simplelogging.level", "ERROR");
@@ -222,6 +221,26 @@ public class LimboAuth {
       LOGGER.error("https://github.com/Elytrium/LimboAuth/releases/");
       LOGGER.error("****************************************");
     }
+
+    this.scheduleQueueTask();
+  }
+
+
+  private void scheduleQueueTask(){
+    this.server.getScheduler().buildTask(this, () -> {
+      if (queue.size() > 0) {
+        JoinPriority joinPriority = queue.pollFirst();
+        Optional<LimboPlayer> limboPlayer = AuthSessionHandler.limboPlayers.stream().filter(p -> p.getProxyPlayer().getUniqueId().toString().equals(joinPriority.getPlayerUuid())).findFirst();
+
+
+        limboPlayer.ifPresent(LimboPlayer::disconnect);
+
+
+        AuthSessionHandler.limboPlayers.forEach(player -> player.getProxyPlayer().sendMessage(Component.text("§b§Jd§aQueue§r §7Aktualizacja kolejki. Twoja nowa pozycja: §6§l" + (Math.abs(Arrays.asList(queue.toArray()).indexOf(player)) + 1))));
+
+      }
+
+    }).delay(Duration.ofMillis(5000)).repeat(Duration.ofMillis(5000)).schedule();
   }
 
   @SuppressFBWarnings(value = "NP_NULL_ON_SOME_PATH", justification = "LEGACY_AMPERSAND can't be null in velocity.")
