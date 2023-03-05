@@ -355,6 +355,7 @@ public class AuthSessionHandler implements LimboSessionHandler {
 
     this.proxyPlayer.hideBossBar(this.bossBar);
     limboPlayers.remove(player);
+    queue.remove(JoinPriority.dummy(player));
   }
 
   private void sendMessage(boolean sendTitle) {
@@ -466,7 +467,7 @@ public class AuthSessionHandler implements LimboSessionHandler {
 
   private void addToQueue(){
 
-    if(player.getProxyPlayer().hasPermission("jd.queue.admin")) {
+    if(player.getProxyPlayer().hasPermission(Settings.IMP.QUEUE.ADMIN_BYPASS_PERMISSION)) {
       this.player.disconnect();
       return;
     }
@@ -475,13 +476,12 @@ public class AuthSessionHandler implements LimboSessionHandler {
 
     JoinPriority joinPriority = new JoinPriority(player.getProxyPlayer().getUniqueId().toString(), priority);
 
-    if (queue.contains(joinPriority)) {
-      queue.remove(joinPriority);
-      player.getProxyPlayer().sendMessage(Component.text("§b§lJd§aQueue§r Opuściłeś kolejkę... "));
-    } else {
-      queue.add(joinPriority);
-      player.getProxyPlayer().sendMessage(Component.text("§b§lJd§aQueue§r §7Dołączyłeś do kolejki. Twoje miejsce w kolejce: §6§l" + (Math.abs(Arrays.asList(queue.toArray()).indexOf(joinPriority)) + 1)));
-    }
+    queue.add(joinPriority);
+
+    int updatedPosition = (Math.abs(Arrays.asList(queue.toArray()).indexOf(joinPriority)) + 1);
+
+    player.getProxyPlayer().sendMessage(Component.text(Settings.IMP.QUEUE.QUEUE_UPDATE_EVENT.replace("%NEW_POSITION%", String.valueOf(updatedPosition))));
+
   }
 
   public static void reload() {

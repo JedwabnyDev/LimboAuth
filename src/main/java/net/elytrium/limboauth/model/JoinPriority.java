@@ -1,5 +1,8 @@
 package net.elytrium.limboauth.model;
 
+import com.velocitypowered.api.proxy.Player;
+import net.elytrium.limboapi.api.player.LimboPlayer;
+
 import java.util.Objects;
 
 public class JoinPriority  {
@@ -33,8 +36,6 @@ public class JoinPriority  {
         this.priority = priority;
     }
 
-
-
     @Override
     public boolean equals(Object obj) {
         if(this == obj)
@@ -51,5 +52,13 @@ public class JoinPriority  {
     @Override
     public int hashCode() {
         return Objects.hash(playerUuid);
+    }
+
+    public static JoinPriority dummy(Player player){
+        return new JoinPriority(player.getUniqueId().toString());
+    }
+
+    public static JoinPriority dummy(LimboPlayer limboPlayer){
+        return new JoinPriority(limboPlayer.getProxyPlayer().getUniqueId().toString());
     }
 }

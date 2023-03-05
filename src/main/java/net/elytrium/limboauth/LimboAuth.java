@@ -237,8 +237,8 @@ public class LimboAuth {
 
 
         AuthSessionHandler.limboPlayers.stream()
-                .filter(p -> queue.contains(new JoinPriority(p.getProxyPlayer().getUniqueId().toString())))
-                .forEach(player -> player.getProxyPlayer().sendMessage(Component.text("§b§Jd§aQueue§r §7Aktualizacja kolejki. Twoja nowa pozycja: §6§l" + (Math.abs(Arrays.asList(queue.toArray()).indexOf(player)) + 1))));
+                .filter(p -> queue.contains(JoinPriority.dummy(p)))
+                .forEach(player -> player.getProxyPlayer().sendMessage(Component.text(Settings.IMP.QUEUE.QUEUE_UPDATE_EVENT.replace("%NEW_POSITION%", String.valueOf((Math.abs(Arrays.asList(queue.toArray()).indexOf(joinPriority)) + 1))))));
 
       }
 
