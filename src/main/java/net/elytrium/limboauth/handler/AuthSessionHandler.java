@@ -32,6 +32,8 @@ import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.text.MessageFormat;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -118,7 +120,7 @@ public class AuthSessionHandler implements LimboSessionHandler {
   private boolean tokenReceived;
   private final boolean isPremium;
 
-  public static final Set<LimboPlayer> limboPlayers = new HashSet<>();
+  public static final Set<LimboPlayer> limboPlayers = ConcurrentHashMap.newKeySet();
 
   public AuthSessionHandler(Dao<RegisteredPlayer, String> playerDao, Player proxyPlayer, LimboAuth plugin, @Nullable RegisteredPlayer playerInfo, boolean isPremium) {
     this.playerDao = playerDao;

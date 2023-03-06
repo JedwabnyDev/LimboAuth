@@ -238,7 +238,7 @@ public class LimboAuth {
 
         AuthSessionHandler.limboPlayers.stream()
                 .filter(p -> queue.contains(JoinPriority.dummy(p)))
-                .forEach(player -> player.getProxyPlayer().sendMessage(Component.text(Settings.IMP.QUEUE.QUEUE_UPDATE_EVENT.replace("%NEW_POSITION%", String.valueOf((Math.abs(Arrays.asList(queue.toArray()).indexOf(joinPriority)) + 1))))));
+                .forEach(player -> player.getProxyPlayer().sendMessage(Component.text(Settings.IMP.QUEUE.QUEUE_UPDATE_EVENT.replace("%NEW_POSITION%", String.valueOf((Math.abs(Arrays.asList(queue.toArray()).indexOf(JoinPriority.dummy(player))) + 1))))));
 
       }
 
