@@ -64,14 +64,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.SQLException;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.UUID;
+import java.time.Duration;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -88,6 +82,7 @@ import net.elytrium.limboapi.api.LimboFactory;
 import net.elytrium.limboapi.api.chunk.VirtualWorld;
 import net.elytrium.limboapi.api.command.LimboCommandMeta;
 import net.elytrium.limboapi.api.file.WorldFile;
+import net.elytrium.limboapi.api.player.LimboPlayer;
 import net.elytrium.limboauth.command.ChangePasswordCommand;
 import net.elytrium.limboauth.command.DestroySessionCommand;
 import net.elytrium.limboauth.command.ForceChangePasswordCommand;
@@ -106,8 +101,10 @@ import net.elytrium.limboauth.event.TaskEvent;
 import net.elytrium.limboauth.floodgate.FloodgateApiHolder;
 import net.elytrium.limboauth.handler.AuthSessionHandler;
 import net.elytrium.limboauth.listener.AuthListener;
+import net.elytrium.limboauth.model.JoinPriority;
 import net.elytrium.limboauth.model.RegisteredPlayer;
 import net.elytrium.limboauth.model.SQLRuntimeException;
+import net.elytrium.limboauth.queue.PriorityComparator;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.ComponentSerializer;
 import net.kyori.adventure.title.Title;
@@ -200,6 +197,8 @@ public class LimboAuth {
     }
   }
 
+  public static final TreeSet<JoinPriority> queue = new TreeSet<>(new PriorityComparator());
+
   @Subscribe
   public void onProxyInitialization(ProxyInitializeEvent event) {
     System.setProperty("com.j256.simplelogging.level", "ERROR");
@@ -222,6 +221,28 @@ public class LimboAuth {
       LOGGER.error("https://github.com/Elytrium/LimboAuth/releases/");
       LOGGER.error("****************************************");
     }
+
+    this.scheduleQueueTask();
+  }
+
+
+  private void scheduleQueueTask(){
+    this.server.getScheduler().buildTask(this, () -> {
+      if (queue.size() > 0) {
+        JoinPriority joinPriority = queue.pollFirst();
+        Optional<LimboPlayer> limboPlayer = AuthSessionHandler.limboPlayers.stream().filter(p -> p.getProxyPlayer().getUniqueId().toString().equals(joinPriority.getPlayerUuid())).findFirst();
+
+
+        limboPlayer.ifPresent(LimboPlayer::disconnect);
+
+
+        AuthSessionHandler.limboPlayers.stream()
+                .filter(p -> queue.contains(JoinPriority.dummy(p)))
+                .forEach(player -> player.getProxyPlayer().sendMessage(Component.text(Settings.IMP.QUEUE.QUEUE_UPDATE_EVENT.replace("%NEW_POSITION%", String.valueOf((Math.abs(Arrays.asList(queue.toArray()).indexOf(JoinPriority.dummy(player))) + 1))))));
+
+      }
+
+    }).delay(Duration.ofMillis(Settings.IMP.QUEUE.QUEUE_POOL_DELAY_MILIS)).repeat(Duration.ofMillis(Settings.IMP.QUEUE.QUEUE_POOL_DELAY_MILIS)).schedule();
   }
 
   @SuppressFBWarnings(value = "NP_NULL_ON_SOME_PATH", justification = "LEGACY_AMPERSAND can't be null in velocity.")
@@ -515,6 +536,18 @@ public class LimboAuth {
     }
   }
 
+  public void limboPlayer(Player player) {
+    RegisteredPlayer registeredPlayer = AuthSessionHandler.fetchInfo(this.playerDao, player.getUsername());
+
+    TaskEvent.Result result = TaskEvent.Result.QUEUE;
+
+    EventManager eventManager = this.server.getEventManager();
+    Consumer<TaskEvent> eventConsumer = (event) -> this.sendPlayer(event, ((PreAuthorizationEvent) event).getPlayerInfo());
+
+    PreAuthorizationEvent authEvent = new PreAuthorizationEvent(eventConsumer, result, player, registeredPlayer);
+    eventManager.fire(authEvent).thenAcceptAsync(eventConsumer);
+  }
+
   public void authPlayer(Player player) {
     boolean isFloodgate = !Settings.IMP.MAIN.FLOODGATE_NEED_AUTH && this.floodgateApi.isFloodgatePlayer(player.getUniqueId());
     if (!isFloodgate && this.isForcedPreviously(player.getUsername()) && this.isPremium(player.getUsername())) {
@@ -584,7 +617,7 @@ public class LimboAuth {
             }
           });
 
-          result = TaskEvent.Result.BYPASS;
+          result = TaskEvent.Result.QUEUE;
         }
       }
     }
@@ -604,7 +637,7 @@ public class LimboAuth {
     }
   }
 
-  private void sendPlayer(TaskEvent event, RegisteredPlayer registeredPlayer) {
+  public void sendPlayer(TaskEvent event, RegisteredPlayer registeredPlayer) {
     Player player = ((PreEvent) event).getPlayer();
 
     switch (event.getResult()) {
@@ -625,9 +658,13 @@ public class LimboAuth {
       case WAIT: {
         return;
       }
+      case QUEUE: {
+        this.authServer.spawnPlayer(player, new AuthSessionHandler(this.playerDao, player, this, registeredPlayer, true));
+        break;
+      }
       case NORMAL:
       default: {
-        this.authServer.spawnPlayer(player, new AuthSessionHandler(this.playerDao, player, this, registeredPlayer));
+        this.authServer.spawnPlayer(player, new AuthSessionHandler(this.playerDao, player, this, registeredPlayer, false));
         break;
       }
     }

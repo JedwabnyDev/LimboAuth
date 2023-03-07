@@ -31,9 +31,9 @@ import io.whitfin.siphash.SipHasher;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.text.MessageFormat;
-import java.util.List;
-import java.util.Locale;
-import java.util.UUID;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -47,12 +47,16 @@ import net.elytrium.limboauth.event.PostAuthorizationEvent;
 import net.elytrium.limboauth.event.PostRegisterEvent;
 import net.elytrium.limboauth.event.TaskEvent;
 import net.elytrium.limboauth.migration.MigrationHash;
+import net.elytrium.limboauth.model.JoinPriority;
+import net.elytrium.limboauth.model.Priority;
 import net.elytrium.limboauth.model.RegisteredPlayer;
 import net.elytrium.limboauth.model.SQLRuntimeException;
 import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.title.Title;
 import org.checkerframework.checker.nullness.qual.Nullable;
+
+import static net.elytrium.limboauth.LimboAuth.queue;
 
 public class AuthSessionHandler implements LimboSessionHandler {
 
@@ -114,17 +118,22 @@ public class AuthSessionHandler implements LimboSessionHandler {
   private boolean totpState;
   private String tempPassword;
   private boolean tokenReceived;
+  private final boolean isPremium;
 
-  public AuthSessionHandler(Dao<RegisteredPlayer, String> playerDao, Player proxyPlayer, LimboAuth plugin, @Nullable RegisteredPlayer playerInfo) {
+  public static final Set<LimboPlayer> limboPlayers = ConcurrentHashMap.newKeySet();
+
+  public AuthSessionHandler(Dao<RegisteredPlayer, String> playerDao, Player proxyPlayer, LimboAuth plugin, @Nullable RegisteredPlayer playerInfo, boolean isPremium) {
     this.playerDao = playerDao;
     this.proxyPlayer = proxyPlayer;
     this.plugin = plugin;
     this.playerInfo = playerInfo;
+    this.isPremium = isPremium;
   }
 
   @Override
   public void onSpawn(Limbo server, LimboPlayer player) {
     this.player = player;
+    limboPlayers.add(player);
 
     if (Settings.IMP.MAIN.DISABLE_FALLING) {
       this.player.disableFalling();
@@ -168,9 +177,21 @@ public class AuthSessionHandler implements LimboSessionHandler {
       }
     }
 
+    if (this.isPremium) {
+      this.finishAuth();
+    } else {
+      this.handleOfflineAuth(serializer);
+      if (!this.loginOnlyByMod) {
+        this.sendMessage(true);
+      }
+    }
+  }
+
+  private void handleOfflineAuth(Serializer serializer) {
     boolean bossBarEnabled = !this.loginOnlyByMod && Settings.IMP.MAIN.ENABLE_BOSSBAR;
     int authTime = Settings.IMP.MAIN.AUTH_TIME;
     float multiplier = 1000.0F / authTime;
+
     this.authMainTask = this.player.getScheduledExecutor().scheduleWithFixedDelay(() -> {
       if (System.currentTimeMillis() - this.joinTime > authTime) {
         this.proxyPlayer.disconnect(timesUp);
@@ -186,10 +207,6 @@ public class AuthSessionHandler implements LimboSessionHandler {
 
     if (bossBarEnabled) {
       this.proxyPlayer.showBossBar(this.bossBar);
-    }
-
-    if (!this.loginOnlyByMod) {
-      this.sendMessage(true);
     }
   }
 
@@ -339,6 +356,8 @@ public class AuthSessionHandler implements LimboSessionHandler {
     }
 
     this.proxyPlayer.hideBossBar(this.bossBar);
+    limboPlayers.remove(player);
+    queue.remove(JoinPriority.dummy(player));
   }
 
   private void sendMessage(boolean sendTitle) {
@@ -405,8 +424,6 @@ public class AuthSessionHandler implements LimboSessionHandler {
       this.proxyPlayer.showTitle(loginSuccessfulTitle);
     }
 
-    System.out.println("log successful");
-
     this.plugin.clearBruteforceAttempts(this.proxyPlayer.getRemoteAddress().getAddress());
 
     this.plugin.getServer().getEventManager()
@@ -438,13 +455,35 @@ public class AuthSessionHandler implements LimboSessionHandler {
       e.printStackTrace();
     }
 
-    this.endAuthProcess();
+    this.proxyPlayer.hideBossBar(this.bossBar);
+
+    if (Settings.IMP.QUEUE.USE_CACHE) {
+      this.plugin.cacheAuthUser(this.proxyPlayer);
+    }
+    if (authMainTask != null) {
+      this.authMainTask.cancel(true);
+    }
+
+    this.addToQueue();
   }
 
-  private void endAuthProcess() {
-    this.proxyPlayer.hideBossBar(this.bossBar);
-    this.authMainTask.cancel(true);
-    this.plugin.cacheAuthUser(this.proxyPlayer);
+  private void addToQueue(){
+
+    if(player.getProxyPlayer().hasPermission(Settings.IMP.QUEUE.ADMIN_BYPASS_PERMISSION)) {
+      this.player.disconnect();
+      return;
+    }
+
+    Priority priority = Priority.reflectFromPermission(player.getProxyPlayer(), Settings.IMP.QUEUE.PRIORITIES);
+
+    JoinPriority joinPriority = new JoinPriority(player.getProxyPlayer().getUniqueId().toString(), priority);
+
+    queue.add(joinPriority);
+
+    int updatedPosition = (Math.abs(Arrays.asList(queue.toArray()).indexOf(joinPriority)) + 1);
+
+    player.getProxyPlayer().sendMessage(Component.text(Settings.IMP.QUEUE.QUEUE_UPDATE_EVENT.replace("%NEW_POSITION%", String.valueOf(updatedPosition))));
+
   }
 
   public static void reload() {
